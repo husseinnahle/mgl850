@@ -20,36 +20,33 @@ export function WalletControls({
   const isConnected = accounts.length > 0;
 
   return (
-    <div className="wallet-controls">
+    <div className="d-flex align-items-center justify-content-end gap-2 flex-wrap">
       {isConnected ? (
         <>
-          <label className="account-selector">
-            <select
-              aria-label="Compte actif"
-              value={selectedAddress}
-              onChange={(event) => onSelectAccount(event.target.value)}
-            >
-              {accounts.map((account) => (
-                <option key={account.address} value={account.address}>
-                  {account.formatAddress()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="wallet-actions">
-            <button
-              className="wallet-button wallet-button--secondary"
-              type="button"
-              onClick={onDisconnect}
-              disabled={isConnecting}
-            >
-              {isConnecting ? 'Déconnexion en cours...' : 'Se déconnecter'}
-            </button>
-          </div>
+          <select
+            className="form-select w-auto"
+            aria-label="Compte actif"
+            value={selectedAddress}
+            onChange={(event) => onSelectAccount(event.target.value)}
+          >
+            {accounts.map((account) => (
+              <option key={account.address} value={account.address}>
+                {account.formatAddress()}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn-outline-secondary text-nowrap"
+            type="button"
+            onClick={onDisconnect}
+            disabled={isConnecting}
+          >
+            {isConnecting ? 'Déconnexion en cours...' : 'Se déconnecter'}
+          </button>
         </>
       ) : (
         <button
-          className="wallet-button"
+          className="btn btn-primary text-nowrap"
           type="button"
           onClick={onConnect}
           disabled={isConnecting}

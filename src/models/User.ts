@@ -1,8 +1,16 @@
+import { Portfolio } from "./Portfolio";
+
 export class User {
   public readonly address: string;
+  public readonly portfolio: Portfolio;
 
-  constructor(address: string) {
+  constructor(address: string, portfolio: Portfolio) {
     this.address = address;
+    this.portfolio = portfolio;
+  }
+
+  static fromAddress(address: string): User {
+    return new User(address, new Portfolio([], []));
   }
 
   formatAddress(): string {
@@ -10,4 +18,5 @@ export class User {
     const suffix = this.address.slice(-5);
     return `${prefix}...${suffix}`;
   }
+
 }

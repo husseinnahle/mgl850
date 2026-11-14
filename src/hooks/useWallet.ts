@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { User } from "../models/User";
+import type { Portfolio } from "../models/Portfolio";
 import { WalletService } from "../services/WalletService";
 
 const walletService = new WalletService();
@@ -15,6 +16,7 @@ export function useWallet() {
   const [accounts, setAccounts] = useState<User[]>([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isSyncingPortfolio, setIsSyncingPortfolio] = useState(false);
   const [error, setError] = useState("");
   const hasActiveSession = useRef(false);
 
@@ -47,6 +49,33 @@ export function useWallet() {
     () => requestAccounts(() => walletService.connect()),
     [requestAccounts],
   );
+
+  const syncPortfolio = useCallback(async (): Promise<Portfolio | null> => {
+    if (!selectedAddress) {
+      setError("Connectez un portefeuille avant de synchroniser le solde.");
+      return null;
+    }
+
+    setIsSyncingPortfolio(true);
+    setError("");
+
+    try {
+      const portfolio = await walletService.getPortfolio(selectedAddress);
+      setAccounts((currentAccounts) =>
+        currentAccounts.map((account) =>
+          account.address === selectedAddress
+            ? new User(account.address, portfolio)
+            : account,
+        ),
+      );
+      return portfolio;
+    } catch (syncError) {
+      setError(getErrorMessage(syncError));
+      return null;
+    } finally {
+      setIsSyncingPortfolio(false);
+    }
+  }, [selectedAddress]);
 
   const revokeAccess = useCallback(async () => {
     setIsConnecting(true);
@@ -88,7 +117,7 @@ export function useWallet() {
       if (!hasActiveSession.current) return;
 
       const updatedAccounts = changedAccounts.map(
-        (address) => new User(address),
+        (address) => User.fromAddress(address),
       );
       setAccounts(updatedAccounts);
       setSelectedAddress((currentAddress) =>
@@ -108,8 +137,10 @@ export function useWallet() {
     selectedAddress,
     selectAccount: setSelectedAddress,
     isConnecting,
+    isSyncingPortfolio,
     error,
     connect,
+    syncPortfolio,
     revokeAccess,
   };
 }
