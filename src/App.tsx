@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Lending } from './components/Lending'
+import { BorrowingPage } from './components/BorrowingPage'
+import { LendingPage } from './components/LendingPage'
 import { Navigation, type PageId } from './components/Navigation'
 import { TransactionList } from './components/TransactionList'
 import { WalletControls } from './components/WalletControls'
 import { useWallet } from './hooks/useWallet'
-import { LendingTransaction, type Transaction } from './models/Transaction'
+import { type Transaction } from './models/Transaction'
 
 const pageContent: Record<PageId, { title: string }> = {
   dashboard: { title: 'Tableau de bord' },
@@ -21,7 +22,7 @@ function App() {
   const selectedAccount = wallet.accounts.find(
     (account) => account.address === wallet.selectedAddress,
   )
-  const addTransaction = (transaction: LendingTransaction) => {
+  const addTransaction = (transaction: Transaction) => {
     setTransactions((currentTransactions) => [
       transaction,
       ...currentTransactions,
@@ -54,14 +55,21 @@ function App() {
         {currentPage === 'dashboard' && (
           <TransactionList
             transactions={transactions.filter(
-              (transaction) =>
-                !(transaction instanceof LendingTransaction) ||
-                transaction.userAddress === wallet.selectedAddress,
+              (transaction) => transaction.userAddress === wallet.selectedAddress,
             )}
           />
         )}
         {currentPage === 'lend' && (
-          <Lending
+          <LendingPage
+            key={wallet.selectedAddress}
+            user={selectedAccount}
+            isSyncingPortfolio={wallet.isSyncingPortfolio}
+            onSyncPortfolio={wallet.syncPortfolio}
+            onTransactionCreated={addTransaction}
+          />
+        )}
+        {currentPage === 'borrow' && (
+          <BorrowingPage
             key={wallet.selectedAddress}
             user={selectedAccount}
             isSyncingPortfolio={wallet.isSyncingPortfolio}

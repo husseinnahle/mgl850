@@ -1,4 +1,4 @@
-import type { Asset, AssetSymbol } from "./Asset";
+import type { Asset, TokenSymbol } from "./Asset";
 import type { LendingPosition } from "./LendingPosition";
 
 export class Portfolio {
@@ -10,7 +10,7 @@ export class Portfolio {
     this.lendingPositions = lendingPositions;
   }
 
-  findAssetBySymbol(symbol: AssetSymbol): Asset | undefined {
+  findAssetBySymbol(symbol: TokenSymbol): Asset | undefined {
     return this.assets.find((asset) => asset.symbol === symbol);
   }
 }

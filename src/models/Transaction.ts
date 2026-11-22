@@ -1,4 +1,5 @@
 import type { LendingPosition } from "./LendingPosition";
+import type { BorrowingPosition } from "./BorrowingPosition";
 import type { User } from "./User";
 import type { TransactionLabel, TransactionStatus } from "./types";
 
@@ -47,19 +48,39 @@ export class Transaction {
     const suffix = this.hash.slice(-5);
     return `${prefix}...${suffix}`;
   }
+
+  toString(): string {
+    return `${this.label} - ${this.status}`;
+  }
 }
 
-export class LendingTransaction extends Transaction {
-  public readonly position: LendingPosition;
+export abstract class PositionTransaction<TPosition extends LendingPosition | BorrowingPosition> extends Transaction {
+  public readonly position: TPosition;
 
+  constructor(
+    hash: string | undefined,
+    status: TransactionStatus,
+    label: TransactionLabel,
+    position: TPosition,
+    userAddress: string,
+  ) {
+    super(hash, status, label, userAddress);
+    this.position = position;
+  }
+
+  toString(): string {
+    return this.position.toString();
+  }
+}
+
+export class LendingTransaction extends PositionTransaction<LendingPosition> {
   constructor(
     hash: string | undefined,
     status: TransactionStatus,
     position: LendingPosition,
     userAddress: string,
   ) {
-    super(hash, status, "Dépôt", userAddress);
-    this.position = position;
+    super(hash, status, "Dépôt", position, userAddress);
   }
 
   static fromLendingPosition(
@@ -73,8 +94,27 @@ export class LendingTransaction extends Transaction {
       user.address,
     );
   }
+}
 
-  toString(): string {
-    return `${this.formatHash()} | ${this.position.toString()} - ${this.status}`;
+export class BorrowingTransaction extends PositionTransaction<BorrowingPosition> {
+  constructor(
+    hash: string | undefined,
+    status: TransactionStatus,
+    position: BorrowingPosition,
+    userAddress: string,
+  ) {
+    super(hash, status, "Emprunt", position, userAddress);
+  }
+
+  static fromBorrowingPosition(
+    user: User,
+    position: BorrowingPosition,
+  ): BorrowingTransaction {
+    return new BorrowingTransaction(
+      undefined,
+      "Préparée",
+      position,
+      user.address,
+    );
   }
 }

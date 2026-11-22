@@ -1,5 +1,4 @@
 import type { Transaction } from "../models/Transaction";
-import { LendingTransaction } from "../models/Transaction";
 
 export function TransactionList({ transactions }: { transactions: Transaction[] }) {
     return (
@@ -17,11 +16,9 @@ export function TransactionList({ transactions }: { transactions: Transaction[] 
                             >
                                 <span>
                                     {transaction.label}
-                                    {transaction instanceof LendingTransaction && (
-                                        <small className="d-block text-body-secondary">
-                                            {transaction.position.toString()}
-                                        </small>
-                                    )}
+                                    <small className="d-block text-body-secondary">
+                                        {transaction.toString()}
+                                    </small>
                                     <small className="d-block text-body-secondary">
                                         {transaction.formatHash()}
                                     </small>
