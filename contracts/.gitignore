@@ -1,0 +1,9 @@
+# Produits de compilation
+out/
+cache/
+
+# Journaux des transactions envoyées par forge script
+broadcast/
+
+# Secrets : ne jamais les mettre dans le dépôt
+.env
