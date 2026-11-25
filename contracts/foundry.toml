@@ -1,0 +1,35 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc = "0.8.30"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+# Le script de déploiement écrit les adresses dans deployments/<chainId>.json
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+[lint]
+# Trois règles du linter de Foundry sont désactivées, chacune pour une raison précise :
+# - block-timestamp : les intérêts et la validité des prix dépendent du temps par conception.
+#   Un validateur ne peut décaler l'horodatage que de quelques secondes, sans effet ici.
+# - unused-return : le pool ignore volontairement une partie de ce que renvoie l'oracle,
+#   par exemple la date d'un prix, quand il n'en a pas besoin.
+# - reentrancy-events : toutes les fonctions qui modifient l'état sont protégées par
+#   nonReentrant, et les appels externes faits avant un événement sont des lectures de
+#   l'oracle et du modèle de taux, deux contrats du protocole.
+exclude_lints = ["block-timestamp", "unused-return", "reentrancy-events"]
+
+[fuzz]
+runs = 256
+
+[rpc_endpoints]
+anvil = "http://127.0.0.1:8545"
+# Nœud public, sans compte ni clé. À remplacer par une adresse Infura ou Alchemy si besoin.
+sepolia = "https://ethereum-sepolia-rpc.publicnode.com"
