@@ -6,4 +6,11 @@ export type TransactionStatus =
   | "Confirmée"
   | "Échouée";
 
-export type TransactionLabel = "Emprunt" | "Remboursement" | "Dépôt" | "Retrait";
+export type TransactionLabel =
+  | "Emprunt"
+  | "Remboursement"
+  | "Dépôt"
+  | "Retrait"
+  | "Garantie"
+  | "Liquidation"
+  | "Faucet";

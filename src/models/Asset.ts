@@ -1,6 +1,6 @@
 import { formatUnits, parseUnits } from "ethers";
 
-export type TokenSymbol = "SepoliaETH" | "USDC";
+export type TokenSymbol = "tETH" | "tUSDC";
 
 export class Asset {
     public readonly symbol: TokenSymbol;
@@ -17,9 +17,13 @@ export class Asset {
         this.decimals = decimals;
     }
 
+    withBalance(balance: bigint): Asset {
+        return new Asset(this.symbol, balance, this.decimals);
+    }
+
     atPercentage(percentage: number): Asset {
         const newBalance = (this.balance * BigInt(percentage)) / 100n;
-        return new Asset(this.symbol, newBalance, this.decimals);
+        return this.withBalance(newBalance);
     }
 
     formatBalance(): string {
@@ -42,3 +46,5 @@ export class Asset {
     }
 }
 
+export const TETH_ASSET = new Asset("tETH", 0n, 18);
+export const TUSDC_ASSET = new Asset("tUSDC", 0n, 6);
