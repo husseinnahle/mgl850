@@ -95,8 +95,11 @@ export function BorrowingPage({
         setIsSending(true);
         setMessage("");
         try {
-            await protocolService.depositCollateral(requiredCollateralUnits);
-            await protocolService.borrow(borrowedAmountUnits);
+            await protocolService.depositCollateral(
+                requiredCollateralUnits,
+                user.address,
+            );
+            await protocolService.borrow(borrowedAmountUnits, user.address);
             setMessage("Emprunt confirmé.");
         } catch (error) {
             const reason = error instanceof Error ? error.message : "Erreur inconnue.";

@@ -43,7 +43,7 @@ export function LendingPage({
         setIsSending(true);
         setMessage("");
         try {
-            await protocolService.deposit(amountUnits);
+            await protocolService.deposit(amountUnits, user.address);
             setMessage("Dépôt confirmé.");
             await onSyncPortfolio();
         } catch (error) {

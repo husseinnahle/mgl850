@@ -20,9 +20,9 @@ export class SepoliaProtocolService {
     return new Contract(address, testTokenAbi, getEthereumProvider());
   }
 
-  private async getLendingPool(): Promise<Contract> {
+  private async getLendingPool(address: string): Promise<Contract> {
     const provider = getEthereumProvider();
-    const signer = await provider.getSigner();
+    const signer = await provider.getSigner(address);
     return new Contract(deployments.LendingPool, lendingPoolAbi, signer);
   }
 
@@ -53,10 +53,10 @@ export class SepoliaProtocolService {
     );
   }
 
-  async faucet(symbol: "tETH" | "tUSDC"): Promise<string> {
+  async faucet(symbol: "tETH" | "tUSDC", address: string): Promise<string> {
     await this.assertSepolia();
     const provider = getEthereumProvider();
-    const signer = await provider.getSigner();
+    const signer = await provider.getSigner(address);
     const token = this.getTestToken(symbol);
     const tokenWithSigner = token.connect(signer) as Contract;
     const transaction =
@@ -65,9 +65,9 @@ export class SepoliaProtocolService {
     return transaction.hash;
   }
 
-  async deposit(amount: bigint): Promise<string> {
-    await this.approveIfNeeded("tUSDC", amount);
-    const pool = await this.getLendingPool();
+  async deposit(amount: bigint, address: string): Promise<string> {
+    await this.approveIfNeeded("tUSDC", amount, address);
+    const pool = await this.getLendingPool(address);
     const transaction = (await pool.deposit(
       amount,
     )) as ContractTransactionResponse;
@@ -75,9 +75,9 @@ export class SepoliaProtocolService {
     return transaction.hash;
   }
 
-  async depositCollateral(amount: bigint): Promise<string> {
-    await this.approveIfNeeded("tETH", amount);
-    const pool = await this.getLendingPool();
+  async depositCollateral(amount: bigint, address: string): Promise<string> {
+    await this.approveIfNeeded("tETH", amount, address);
+    const pool = await this.getLendingPool(address);
     const transaction = (await pool.depositCollateral(
       amount,
     )) as ContractTransactionResponse;
@@ -85,8 +85,8 @@ export class SepoliaProtocolService {
     return transaction.hash;
   }
 
-  async borrow(amount: bigint): Promise<string> {
-    const pool = await this.getLendingPool();
+  async borrow(amount: bigint, address: string): Promise<string> {
+    const pool = await this.getLendingPool(address);
     const transaction = (await pool.borrow(
       amount,
     )) as ContractTransactionResponse;
@@ -97,10 +97,10 @@ export class SepoliaProtocolService {
   private async approveIfNeeded(
     symbol: "tETH" | "tUSDC",
     amount: bigint,
+    address: string,
   ): Promise<void> {
     await this.assertSepolia();
-    const signer = await getEthereumProvider().getSigner();
-    const address = await signer.getAddress();
+    const signer = await getEthereumProvider().getSigner(address);
     const token = this.getTestToken(symbol);
     const allowance = (await token.allowance(
       address,

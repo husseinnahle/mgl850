@@ -21,7 +21,7 @@ export function FaucetPage({
         setIsSending(true);
         setMessage("");
         try {
-            await protocolService.faucet(symbol);
+            await protocolService.faucet(symbol, user.address);
             setMessage(`${symbol} ajouté à votre portefeuille.`);
             await onSyncPortfolio();
         } catch (error) {
