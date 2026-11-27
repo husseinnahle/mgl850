@@ -16,19 +16,19 @@ export class BorrowingCalculator {
         this.priceOracle = priceOracle;
     }
 
-    quote(
+    async quote(
         borrowedAmountUnits: bigint | null,
         collateralAsset: Asset,
         borrowedAsset: Asset,
-    ): BorrowingQuote {
-        const maximumBorrowUnits = this.maximumBorrowUnits(
+    ): Promise<BorrowingQuote> {
+        const maximumBorrowUnits = await this.maximumBorrowUnits(
             collateralAsset.balance,
             collateralAsset,
             borrowedAsset,
         );
         const requiredCollateralUnits = borrowedAmountUnits === null
             ? null
-            : this.requiredCollateralUnits(
+            : await this.requiredCollateralUnits(
                 borrowedAmountUnits,
                 borrowedAsset,
                 collateralAsset,
@@ -42,37 +42,45 @@ export class BorrowingCalculator {
         };
     }
 
-    requiredCollateralUnits(
+    async requiredCollateralUnits(
         borrowedAmountUnits: bigint,
         borrowedAsset: Asset,
         collateralAsset: Asset,
-    ): bigint {
+    ): Promise<bigint> {
+        const [borrowedPrice, collateralPrice] = await Promise.all([
+            this.priceOracle.getPriceInCents(borrowedAsset.symbol),
+            this.priceOracle.getPriceInCents(collateralAsset.symbol),
+        ]);
         const numerator =
             borrowedAmountUnits *
-            this.priceOracle.getPriceInCents(borrowedAsset.symbol) *
+            borrowedPrice *
             100n *
             tokenUnit(collateralAsset);
         const denominator =
             tokenUnit(borrowedAsset) *
-            this.priceOracle.getPriceInCents(collateralAsset.symbol) *
+            collateralPrice *
             MAX_CRYPTO_LTV_PERCENT;
 
         return divideCeiling(numerator, denominator);
     }
 
-    maximumBorrowUnits(
+    async maximumBorrowUnits(
         collateralAmountUnits: bigint,
         collateralAsset: Asset,
         borrowedAsset: Asset,
-    ): bigint {
+    ): Promise<bigint> {
+        const [collateralPrice, borrowedPrice] = await Promise.all([
+            this.priceOracle.getPriceInCents(collateralAsset.symbol),
+            this.priceOracle.getPriceInCents(borrowedAsset.symbol),
+        ]);
         const numerator =
             collateralAmountUnits *
-            this.priceOracle.getPriceInCents(collateralAsset.symbol) *
+            collateralPrice *
             MAX_CRYPTO_LTV_PERCENT *
             tokenUnit(borrowedAsset);
         const denominator =
             tokenUnit(collateralAsset) *
-            this.priceOracle.getPriceInCents(borrowedAsset.symbol) *
+            borrowedPrice *
             100n;
 
         return numerator / denominator;

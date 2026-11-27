@@ -1,7 +1,6 @@
 import type { Asset } from "../models/Asset";
 
 type PortfolioAssetFieldProps = {
-    id: string;
     label: string;
     asset: Asset | null;
     emptyMessage: string;
@@ -9,7 +8,6 @@ type PortfolioAssetFieldProps = {
 };
 
 export function PortfolioAssetField({
-    id,
     label,
     asset,
     emptyMessage,
@@ -17,12 +15,11 @@ export function PortfolioAssetField({
 }: PortfolioAssetFieldProps) {
     return (
         <div className="mb-3">
-            <label className="form-label" htmlFor={id}>
+            <label className="form-label">
                 {label}
             </label>
             <select
                 className="form-select"
-                id={id}
                 value={asset?.symbol ?? ""}
                 disabled={!asset || disabled}
             >

@@ -42,7 +42,7 @@ export class Asset {
     }
 
     toString(): string {
-        return `${this.formatBalance()} ${this.symbol}`;
+        return `${Number(this.formatBalance()).toFixed(2)} ${this.symbol}`;
     }
 }
 

@@ -1,30 +1,28 @@
-const pages = [
-    { id: 'dashboard', label: 'Tableau de bord' },
-    { id: 'lend', label: 'Prêter' },
-    { id: 'borrow', label: 'Emprunter' },
-    { id: 'liquidate', label: 'Liquider' },
-] as const;
-
-export type PageId = (typeof pages)[number]['id'];
+import { pages, type PageId } from '../models/pageConfig';
 
 export function Navigation({
     current,
     onChange,
+    isWalletConnected,
 }: {
     current: PageId;
     onChange: (page: PageId) => void;
+    isWalletConnected: boolean;
 }) {
     return (
         <nav
             className="nav nav-pills flex-nowrap gap-1 overflow-auto"
             aria-label="Navigation principale"
         >
-            {pages.map(({ id, label }) => (
+            {pages.map(({ id, label, requiresWallet }) => (
                 <button
                     key={id}
-                    className={`nav-link text-nowrap${current === id ? ' active' : ''}`}
+                    className={id === 'faucet'
+                        ? `btn btn-sm text-nowrap ms-2 ${current === id ? 'btn-warning' : 'btn-outline-warning'}`
+                        : `nav-link text-nowrap${current === id ? ' active' : ''}`}
                     type="button"
                     aria-current={current === id ? 'page' : undefined}
+                    disabled={requiresWallet && !isWalletConnected}
                     onClick={() => onChange(id)}
                 >
                     {label}

@@ -9,10 +9,6 @@ export class User {
     this.portfolio = portfolio;
   }
 
-  static fromAddress(address: string): User {
-    return new User(address, new Portfolio([], []));
-  }
-
   formatAddress(): string {
     const prefix = this.address.slice(0, 7);
     const suffix = this.address.slice(-5);

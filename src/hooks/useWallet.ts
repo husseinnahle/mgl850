@@ -19,6 +19,7 @@ export function useWallet() {
   const [isSyncingPortfolio, setIsSyncingPortfolio] = useState(false);
   const [error, setError] = useState("");
   const hasActiveSession = useRef(false);
+  const accountChangeRequest = useRef(0);
 
   const requestAccounts = useCallback(
     async (request: () => Promise<User[]>) => {
@@ -107,6 +108,7 @@ export function useWallet() {
         return;
       }
 
+      const requestId = ++accountChangeRequest.current;
       if (changedAccounts.length === 0) {
         hasActiveSession.current = false;
         setAccounts([]);
@@ -116,15 +118,26 @@ export function useWallet() {
 
       if (!hasActiveSession.current) return;
 
-      const updatedAccounts = changedAccounts.map(
-        (address) => User.fromAddress(address),
-      );
-      setAccounts(updatedAccounts);
-      setSelectedAddress((currentAddress) =>
-        changedAccounts.includes(currentAddress)
-          ? currentAddress
-          : (updatedAccounts[0]?.address ?? ""),
-      );
+      setError("");
+      void walletService.getUsers(changedAccounts).then((updatedAccounts) => {
+        if (
+          requestId !== accountChangeRequest.current ||
+          !hasActiveSession.current
+        ) {
+          return;
+        }
+        setAccounts(updatedAccounts);
+        setSelectedAddress((currentAddress) =>
+          changedAccounts.includes(currentAddress)
+            ? currentAddress
+            : (updatedAccounts[0]?.address ?? ""),
+        );
+      }).catch((accountError: unknown) => {
+        if (requestId !== accountChangeRequest.current) return;
+        setError(getErrorMessage(accountError));
+        setAccounts([]);
+        setSelectedAddress("");
+      });
     };
 
     provider.on("accountsChanged", handleAccountsChanged);

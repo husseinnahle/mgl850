@@ -1,34 +1,26 @@
 import { useState, type SubmitEvent } from "react";
 import { BalancePercentageButtons } from "./BalancePercentageButtons";
 import { PortfolioAssetField } from "./PortfolioAssetField";
-import { useSyncedPortfolioAsset } from "../hooks/useSyncedPortfolioAsset";
 import { useTimedMessage } from "../hooks/useTimedMessage";
-import { LendingPosition } from "../models/LendingPosition";
 import type { Portfolio } from "../models/Portfolio";
-import { LendingTransaction } from "../models/Transaction";
 import type { User } from "../models/User";
+import { protocolService } from "../services/ProtocolService";
 
 type LendingProps = {
     user: User | undefined;
     isSyncingPortfolio: boolean;
     onSyncPortfolio: () => Promise<Portfolio | null>;
-    onTransactionCreated: (transaction: LendingTransaction) => void;
 };
 
 export function LendingPage({
     user,
     isSyncingPortfolio,
     onSyncPortfolio,
-    onTransactionCreated,
 }: LendingProps) {
     const [amount, setAmount] = useState("");
+    const [isSending, setIsSending] = useState(false);
     const [message, setMessage] = useTimedMessage();
-    const userAddress = user?.address;
-    const syncedAsset = useSyncedPortfolioAsset(
-        userAddress,
-        onSyncPortfolio,
-        "SepoliaETH",
-    );
+    const syncedAsset = user?.portfolio.findAssetBySymbol("tUSDC") ?? null;
     const isFormDisabled = !user || !syncedAsset || isSyncingPortfolio;
 
     const applyBalancePercentage = (percentage: number) => {
@@ -37,18 +29,28 @@ export function LendingPage({
         setMessage("");
     };
 
-    const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!user || !syncedAsset || isSyncingPortfolio) {
             return;
         }
-        const position = new LendingPosition(syncedAsset, amount);
-        onTransactionCreated(
-            LendingTransaction.fromLendingPosition(user, position),
-        );
-        setMessage(
-            "Demande enregistrée.",
-        );
+        const amountUnits = syncedAsset.parseAmount(amount);
+        if (amountUnits === null) {
+            setMessage("Montant invalide.");
+            return;
+        }
+
+        setIsSending(true);
+        setMessage("");
+        try {
+            await protocolService.deposit(amountUnits);
+            setMessage("Dépôt confirmé.");
+            await onSyncPortfolio();
+        } catch (error) {
+            setMessage("La transaction a échoué.");
+        } finally {
+            setIsSending(false);
+        }
     };
 
     return (
@@ -58,10 +60,9 @@ export function LendingPage({
 
                 <form onSubmit={handleSubmit}>
                     <PortfolioAssetField
-                        id="lending-asset"
                         label="Actif"
                         asset={syncedAsset}
-                        emptyMessage={user ? "Aucun actif disponible" : "Connectez MetaMask"}
+                        emptyMessage="Aucun actif disponible"
                         disabled={isFormDisabled}
                     />
 
@@ -89,23 +90,17 @@ export function LendingPage({
                         </div>
                         <BalancePercentageButtons
                             asset={syncedAsset}
-                            disabled={isFormDisabled}
+                            disabled={isFormDisabled || isSending}
                             onSelect={applyBalancePercentage}
                         />
                     </div>
 
-                    {!user && (
-                        <p className="small text-body-secondary" role="note">
-                            Connectez votre portefeuille avant de préparer un dépôt.
-                        </p>
-                    )}
-
                     <button
                         className="btn btn-primary w-100"
                         type="submit"
-                        disabled={isFormDisabled}
+                        disabled={isFormDisabled || isSending}
                     >
-                        {isSyncingPortfolio ? "Synchronisation..." : "Soumettre"}
+                        {isSending ? "Transaction en cours..." : isSyncingPortfolio ? "Synchronisation..." : "Soumettre"}
                     </button>
 
                     {message && (

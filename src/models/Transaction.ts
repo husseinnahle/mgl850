@@ -1,6 +1,3 @@
-import type { LendingPosition } from "./LendingPosition";
-import type { BorrowingPosition } from "./BorrowingPosition";
-import type { User } from "./User";
 import type { TransactionLabel, TransactionStatus } from "./types";
 
 let nextTransactionId = 0;
@@ -54,67 +51,26 @@ export class Transaction {
   }
 }
 
-export abstract class PositionTransaction<TPosition extends LendingPosition | BorrowingPosition> extends Transaction {
-  public readonly position: TPosition;
+export class ChainTransaction extends Transaction {
+  public readonly blockNumber: number;
+  public readonly logIndex: number;
+  public readonly details: string;
 
   constructor(
-    hash: string | undefined,
-    status: TransactionStatus,
+    hash: string,
     label: TransactionLabel,
-    position: TPosition,
     userAddress: string,
+    blockNumber: number,
+    logIndex: number,
+    details: string,
   ) {
-    super(hash, status, label, userAddress);
-    this.position = position;
+    super(hash, "Confirmée", label, userAddress);
+    this.blockNumber = blockNumber;
+    this.logIndex = logIndex;
+    this.details = details;
   }
 
   toString(): string {
-    return this.position.toString();
-  }
-}
-
-export class LendingTransaction extends PositionTransaction<LendingPosition> {
-  constructor(
-    hash: string | undefined,
-    status: TransactionStatus,
-    position: LendingPosition,
-    userAddress: string,
-  ) {
-    super(hash, status, "Dépôt", position, userAddress);
-  }
-
-  static fromLendingPosition(
-    user: User,
-    position: LendingPosition,
-  ): LendingTransaction {
-    return new LendingTransaction(
-      undefined,
-      "Préparée",
-      position,
-      user.address,
-    );
-  }
-}
-
-export class BorrowingTransaction extends PositionTransaction<BorrowingPosition> {
-  constructor(
-    hash: string | undefined,
-    status: TransactionStatus,
-    position: BorrowingPosition,
-    userAddress: string,
-  ) {
-    super(hash, status, "Emprunt", position, userAddress);
-  }
-
-  static fromBorrowingPosition(
-    user: User,
-    position: BorrowingPosition,
-  ): BorrowingTransaction {
-    return new BorrowingTransaction(
-      undefined,
-      "Préparée",
-      position,
-      user.address,
-    );
+    return this.details;
   }
 }

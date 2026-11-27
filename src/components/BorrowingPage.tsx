@@ -1,57 +1,84 @@
 import { formatUnits } from "ethers";
-import { useState, type SubmitEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import { BalancePercentageButtons } from "./BalancePercentageButtons";
 import { PortfolioAssetField } from "./PortfolioAssetField";
-import { useSyncedPortfolioAsset } from "../hooks/useSyncedPortfolioAsset";
 import { useTimedMessage } from "../hooks/useTimedMessage";
-import { Asset } from "../models/Asset";
-import { BorrowingPosition } from "../models/BorrowingPosition";
+import type { AccountPosition } from "../models/AccountPosition";
+import { TUSDC_ASSET } from "../models/Asset";
 import type { Portfolio } from "../models/Portfolio";
-import { BorrowingTransaction } from "../models/Transaction";
 import type { User } from "../models/User";
-import { BorrowingCalculator, MAX_CRYPTO_LTV_PERCENT } from "../services/BorrowingCalculator";
+import {
+    BorrowingCalculator,
+    MAX_CRYPTO_LTV_PERCENT,
+    type BorrowingQuote,
+} from "../services/BorrowingCalculator";
 import { priceOracle } from "../services/PriceOracle";
+import { protocolService } from "../services/ProtocolService";
 import { formatUsdFromCents } from "../utils/formatCurrency";
 
 type BorrowingProps = {
     user: User | undefined;
     isSyncingPortfolio: boolean;
     onSyncPortfolio: () => Promise<Portfolio | null>;
-    onTransactionCreated: (transaction: BorrowingTransaction) => void;
 };
 
-const borrowedAssetSymbol = "USDC";
-const borrowedAssetDecimals = 6;
-const borrowedAsset = new Asset(borrowedAssetSymbol, 0n, borrowedAssetDecimals);
+type BorrowingPreview = BorrowingQuote & {
+    collateralPriceInCents: bigint | null;
+};
+
 const borrowingCalculator = new BorrowingCalculator(priceOracle);
 
 export function BorrowingPage({
     user,
     isSyncingPortfolio,
     onSyncPortfolio,
-    onTransactionCreated,
 }: BorrowingProps) {
     const [borrowedAmount, setBorrowedAmount] = useState("");
     const [message, setMessage] = useTimedMessage();
-    const collateralAsset = useSyncedPortfolioAsset(user?.address, onSyncPortfolio, "SepoliaETH");
-    const isFormDisabled = !user || !collateralAsset || isSyncingPortfolio;
-    const borrowedAmountUnits = borrowedAsset.parseAmount(borrowedAmount);
-    const quote = collateralAsset
-        ? borrowingCalculator.quote(borrowedAmountUnits, collateralAsset, borrowedAsset)
-        : null;
-    const requiredCollateralUnits = quote?.requiredCollateralUnits ?? null;
+    const accountPosition: AccountPosition | null = user?.portfolio.accountPosition ?? null;
+    const [isSending, setIsSending] = useState(false);
+    const [preview, setPreview] = useState<BorrowingPreview | null>(null);
+    const collateralAsset = user?.portfolio.findAssetBySymbol("tETH") ?? null;
+    const isFormDisabled = !user || !collateralAsset || isSyncingPortfolio || isSending;
+    const borrowedAmountUnits = TUSDC_ASSET.parseAmount(borrowedAmount);
+    const requiredCollateralUnits = preview?.requiredCollateralUnits ?? null;
     const requiredCollateral = requiredCollateralUnits !== null && collateralAsset
         ? formatUnits(requiredCollateralUnits, collateralAsset.decimals)
         : "";
-    const maximumBorrowUnits = quote?.maximumBorrowUnits ?? 0n;
-    const maximumBorrowAsset = new Asset(
-        borrowedAssetSymbol,
-        maximumBorrowUnits,
-        borrowedAssetDecimals,
-    );
-    const exceedsMaximumBorrow = quote?.exceedsMaximumBorrow ?? false;
+    const maximumBorrowUnits = preview?.maximumBorrowUnits ?? 0n;
+    const maximumBorrowAsset = TUSDC_ASSET.withBalance(maximumBorrowUnits);
+    const exceedsMaximumBorrow = preview?.exceedsMaximumBorrow ?? false;
 
-    const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
+    useEffect(() => {
+        if (!collateralAsset) return;
+
+        void Promise.all([
+            borrowingCalculator.quote(
+                borrowedAmountUnits,
+                collateralAsset,
+                TUSDC_ASSET,
+            ),
+            priceOracle.getPriceData(collateralAsset.symbol),
+        ]).then(([quote, collateralPrice]) => {
+            const maximumBorrowUnits =
+                quote.maximumBorrowUnits + (accountPosition?.availableToBorrow ?? 0n);
+            setPreview({
+                ...quote,
+                maximumBorrowUnits,
+                exceedsMaximumBorrow:
+                    borrowedAmountUnits !== null
+                    && borrowedAmountUnits > maximumBorrowUnits,
+                collateralPriceInCents: collateralPrice.valid
+                    ? collateralPrice.priceInCents
+                    : null,
+            });
+        }).catch(() => {
+            setMessage("Impossible de récupérer les informations de prêt.");
+        });
+
+    }, [accountPosition?.availableToBorrow, borrowedAmountUnits, collateralAsset, setMessage]);
+
+    const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!user || !collateralAsset || isSyncingPortfolio) return;
 
@@ -65,16 +92,19 @@ export function BorrowingPage({
             return;
         }
 
-        const position = new BorrowingPosition(
-            collateralAsset,
-            requiredCollateralUnits,
-            borrowedAsset,
-            borrowedAmountUnits,
-        );
-        onTransactionCreated(
-            BorrowingTransaction.fromBorrowingPosition(user, position),
-        );
-        setMessage("Demande d'emprunt préparée.");
+        setIsSending(true);
+        setMessage("");
+        try {
+            await protocolService.depositCollateral(requiredCollateralUnits);
+            await protocolService.borrow(borrowedAmountUnits);
+            setMessage("Emprunt confirmé.");
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : "Erreur inconnue.";
+            setMessage(`La transaction a échoué : ${reason}`);
+        } finally {
+            await onSyncPortfolio();
+            setIsSending(false);
+        }
     };
 
     return (
@@ -84,10 +114,9 @@ export function BorrowingPage({
 
                 <form onSubmit={handleSubmit}>
                     <PortfolioAssetField
-                        id="borrowing-collateral-asset"
                         label="Actif de garantie"
                         asset={collateralAsset}
-                        emptyMessage={user ? "Aucun actif disponible" : "Connectez MetaMask"}
+                        emptyMessage="Aucun actif disponible"
                         disabled={isFormDisabled}
                     />
 
@@ -111,7 +140,7 @@ export function BorrowingPage({
                                 }}
                                 required
                             />
-                            <span className="input-group-text">{borrowedAssetSymbol}</span>
+                            <span className="input-group-text">{TUSDC_ASSET.symbol}</span>
                         </div>
                         <BalancePercentageButtons
                             asset={maximumBorrowAsset}
@@ -124,8 +153,8 @@ export function BorrowingPage({
                             }}
                         />
                         <div className="form-text">
-                            Emprunt maximal disponible : {quote
-                                ? `${formatUnits(quote.maximumBorrowUnits, borrowedAssetDecimals)} ${borrowedAssetSymbol}`
+                            Emprunt maximal disponible : {accountPosition
+                                ? `${formatUnits(accountPosition.availableToBorrow, TUSDC_ASSET.decimals)} ${TUSDC_ASSET.symbol}`
                                 : "—"}
                         </div>
                     </div>
@@ -148,9 +177,9 @@ export function BorrowingPage({
                             </span>
                         </div>
                         <div className="form-text">
-                            1 {collateralAsset?.symbol ?? "SepoliaETH"} = {formatUsdFromCents(
-                                priceOracle.getPriceInCents(collateralAsset?.symbol ?? "SepoliaETH"),
-                            )}
+                            1 {collateralAsset?.symbol ?? "tETH"} = {preview?.collateralPriceInCents == null
+                                ? "Prix indisponible"
+                                : formatUsdFromCents(preview.collateralPriceInCents)}
                         </div>
                     </div>
 
@@ -160,18 +189,12 @@ export function BorrowingPage({
                         </p>
                     )}
 
-                    {!user && (
-                        <p className="small text-body-secondary" role="note">
-                            Connectez votre portefeuille avant de préparer un emprunt.
-                        </p>
-                    )}
-
                     <button
                         className="btn btn-primary w-100"
                         type="submit"
                         disabled={isFormDisabled || exceedsMaximumBorrow}
                     >
-                        {isSyncingPortfolio ? "Synchronisation..." : "Soumettre"}
+                        {isSending ? "Transaction en cours..." : isSyncingPortfolio ? "Synchronisation..." : "Soumettre"}
                     </button>
 
                     {message && (
