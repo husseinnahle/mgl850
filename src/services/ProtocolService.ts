@@ -7,6 +7,9 @@ import testTokenAbi from "../../contracts/abi/TestToken.json";
 import deployments from "../../contracts/deployments/11155111.json";
 import type { AccountPosition } from "../models/AccountPosition";
 import { TETH_ASSET, TUSDC_ASSET } from "../models/Asset";
+import type { BorrowerPosition } from "../models/BorrowerPosition";
+import type { LendingPoolState } from "../models/LendingPoolState";
+import type { MarketState } from "../models/MarketState";
 import { Portfolio } from "../models/Portfolio";
 import { getEthereumProvider } from "../utils/ethereumProvider";
 import { transactionHistoryService } from "./TransactionHistoryService";
@@ -37,11 +40,11 @@ export class SepoliaProtocolService {
     await this.assertSepolia();
     const [tEthBalance, usdcBalance, accountPosition, transactions] =
       await Promise.all([
-        this.getTestToken("tETH").balanceOf(address),
-        this.getTestToken("tUSDC").balanceOf(address),
-        this.getAccountPosition(address),
-        transactionHistoryService.getTransactionHistory(address),
-      ]);
+      this.getTestToken("tETH").balanceOf(address),
+      this.getTestToken("tUSDC").balanceOf(address),
+      this.getAccountPosition(address),
+      transactionHistoryService.getTransactionHistory(address),
+    ]);
 
     return new Portfolio(
       [
@@ -51,6 +54,14 @@ export class SepoliaProtocolService {
       accountPosition,
       transactions,
     );
+  }
+
+  async getMarketState(): Promise<MarketState> {
+    const [pool, borrowerPositions] = await Promise.all([
+      this.getPoolState(),
+      this.getBorrowerPositions(),
+    ]);
+    return { pool, borrowerPositions };
   }
 
   async faucet(symbol: "tETH" | "tUSDC", address: string): Promise<string> {
@@ -137,6 +148,42 @@ export class SepoliaProtocolService {
       maxLiquidationRepay: position.maxLiquidationRepay,
       liquidatable: position.liquidatable,
     };
+  }
+
+  private async getPoolState(): Promise<LendingPoolState> {
+    const pool = new Contract(
+      deployments.LendingPool,
+      lendingPoolAbi,
+      getEthereumProvider(),
+    );
+    const state = await pool.getPoolState();
+    return {
+      totalLiquidity: state.totalLiquidity as bigint,
+      availableLiquidity: state.availableLiquidity as bigint,
+      totalBorrows: state.totalBorrows as bigint,
+      totalReserves: state.totalReserves as bigint,
+      utilization: state.utilization as bigint,
+      borrowRate: state.borrowRate as bigint,
+      supplyRate: state.supplyRate as bigint,
+      assetPrice: state.assetPrice as bigint,
+      collateralPrice: state.collateralPrice as bigint,
+      pricesValid: state.pricesValid as boolean,
+    };
+  }
+
+  private async getBorrowerPositions(): Promise<BorrowerPosition[]> {
+    const pool = new Contract(
+      deployments.LendingPool,
+      lendingPoolAbi,
+      getEthereumProvider(),
+    );
+    const addresses = (await pool.getBorrowers()) as string[];
+    return Promise.all(
+      addresses.map(async (address) => ({
+        address,
+        position: await this.getAccountPosition(address),
+      })),
+    );
   }
 
 }
