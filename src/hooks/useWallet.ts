@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { User } from "../models/User";
-import type { Portfolio } from "../models/Portfolio";
+import { Session } from "../models/Session";
 import { WalletService } from "../services/WalletService";
 
 const walletService = new WalletService();
@@ -13,70 +12,88 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useWallet() {
-  const [accounts, setAccounts] = useState<User[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState("");
+  const [session, setSession] = useState<Session | null>(null);
+  const selectedAddress = session?.selectedAddress;
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isSyncingPortfolio, setIsSyncingPortfolio] = useState(false);
+  const [isSyncingSession, setIsSyncingSession] = useState(false);
   const [error, setError] = useState("");
   const hasActiveSession = useRef(false);
   const accountChangeRequest = useRef(0);
+  const activeSessionSyncs = useRef(0);
+  const sessionSyncRequests = useRef(new Map<string, number>());
+  const nextSessionSyncRequest = useRef(0);
 
-  const requestAccounts = useCallback(
-    async (request: () => Promise<User[]>) => {
-      setIsConnecting(true);
-      setError("");
+  const syncSessionForAddress = useCallback(async (
+    address: string,
+  ): Promise<void> => {
+    if (!address) return;
 
-      try {
-        const connectedAccounts = await request();
-        hasActiveSession.current = true;
-        setAccounts(connectedAccounts);
-        setSelectedAddress((currentAddress) =>
-          connectedAccounts.some(
-            (account) => account.address === currentAddress,
-          )
-            ? currentAddress
-            : (connectedAccounts[0]?.address ?? ""),
-        );
-      } catch (connectionError) {
-        setError(getErrorMessage(connectionError));
-      } finally {
-        setIsConnecting(false);
-      }
-    },
-    [],
-  );
-
-  const connect = useCallback(
-    () => requestAccounts(() => walletService.connect()),
-    [requestAccounts],
-  );
-
-  const syncPortfolio = useCallback(async (): Promise<Portfolio | null> => {
-    if (!selectedAddress) {
-      setError("Connectez un portefeuille avant de synchroniser le solde.");
-      return null;
-    }
-
-    setIsSyncingPortfolio(true);
+    const requestId = ++nextSessionSyncRequest.current;
+    sessionSyncRequests.current.set(address, requestId);
+    activeSessionSyncs.current += 1;
+    setIsSyncingSession(true);
     setError("");
 
     try {
-      const portfolio = await walletService.getPortfolio(selectedAddress);
-      setAccounts((currentAccounts) =>
-        currentAccounts.map((account) =>
-          account.address === selectedAddress
-            ? new User(account.address, portfolio)
-            : account,
-        ),
-      );
-      return portfolio;
+      const [portfolio, marketState] = await Promise.all([
+        walletService.getPortfolio(address),
+        walletService.getMarketState(),
+      ]);
+      if (
+        sessionSyncRequests.current.get(address) === requestId &&
+        hasActiveSession.current
+      ) {
+        setSession((currentSession) =>
+          currentSession?.withSyncedData(address, portfolio, marketState) ??
+          currentSession,
+        );
+      }
     } catch (syncError) {
-      setError(getErrorMessage(syncError));
-      return null;
+      if (sessionSyncRequests.current.get(address) === requestId) {
+        setError(getErrorMessage(syncError));
+      }
     } finally {
-      setIsSyncingPortfolio(false);
+      activeSessionSyncs.current -= 1;
+      setIsSyncingSession(activeSessionSyncs.current > 0);
     }
-  }, [selectedAddress]);
+  }, []);
+
+  const connect = useCallback(async () => {
+    setIsConnecting(true);
+    setError("");
+
+    try {
+      const accounts = await walletService.connect();
+      const marketState = await walletService.getMarketState();
+      hasActiveSession.current = true;
+      setSession((currentSession) => {
+        const selectedAddress =
+          currentSession &&
+          accounts.some(
+            (account) => account.address === currentSession.selectedAddress,
+          )
+            ? currentSession.selectedAddress
+            : (accounts[0]?.address ?? "");
+        return new Session(accounts, selectedAddress, marketState);
+      });
+    } catch (connectionError) {
+      setError(getErrorMessage(connectionError));
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  const syncSession = useCallback((): Promise<void> => {
+    if (!selectedAddress) return Promise.resolve();
+    return syncSessionForAddress(selectedAddress);
+  }, [selectedAddress, syncSessionForAddress]);
+
+  const selectAccount = useCallback((address: string) => {
+    setSession((currentSession) =>
+      currentSession?.withSelectedAddress(address) ?? currentSession,
+    );
+    if (address) void syncSessionForAddress(address);
+  }, [syncSessionForAddress]);
 
   const revokeAccess = useCallback(async () => {
     setIsConnecting(true);
@@ -85,8 +102,8 @@ export function useWallet() {
     try {
       await walletService.disconnect();
       hasActiveSession.current = false;
-      setAccounts([]);
-      setSelectedAddress("");
+      sessionSyncRequests.current.clear();
+      setSession(null);
     } catch (revokeError) {
       setError(getErrorMessage(revokeError));
     } finally {
@@ -111,32 +128,37 @@ export function useWallet() {
       const requestId = ++accountChangeRequest.current;
       if (changedAccounts.length === 0) {
         hasActiveSession.current = false;
-        setAccounts([]);
-        setSelectedAddress("");
+        sessionSyncRequests.current.clear();
+        setSession(null);
         return;
       }
 
       if (!hasActiveSession.current) return;
 
       setError("");
-      void walletService.getUsers(changedAccounts).then((updatedAccounts) => {
+      sessionSyncRequests.current.clear();
+      void Promise.all([
+        walletService.getUsers(changedAccounts),
+        walletService.getMarketState(),
+      ]).then(([updatedAccounts, marketState]) => {
         if (
           requestId !== accountChangeRequest.current ||
           !hasActiveSession.current
         ) {
           return;
         }
-        setAccounts(updatedAccounts);
-        setSelectedAddress((currentAddress) =>
-          changedAccounts.includes(currentAddress)
-            ? currentAddress
-            : (updatedAccounts[0]?.address ?? ""),
-        );
+        setSession((currentSession) => {
+          const selectedAddress =
+            currentSession &&
+            changedAccounts.includes(currentSession.selectedAddress)
+              ? currentSession.selectedAddress
+              : (updatedAccounts[0]?.address ?? "");
+          return new Session(updatedAccounts, selectedAddress, marketState);
+        });
       }).catch((accountError: unknown) => {
         if (requestId !== accountChangeRequest.current) return;
         setError(getErrorMessage(accountError));
-        setAccounts([]);
-        setSelectedAddress("");
+        setSession(null);
       });
     };
 
@@ -146,14 +168,13 @@ export function useWallet() {
   }, []);
 
   return {
-    accounts,
-    selectedAddress,
-    selectAccount: setSelectedAddress,
+    session,
+    selectAccount,
     isConnecting,
-    isSyncingPortfolio,
+    isSyncingSession,
     error,
     connect,
-    syncPortfolio,
+    syncSession,
     revokeAccess,
   };
 }

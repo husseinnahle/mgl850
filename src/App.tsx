@@ -12,9 +12,8 @@ function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard')
   const wallet = useWallet()
   const activePage = pages.find((page) => page.id === currentPage)
-  const selectedAccount = wallet.accounts.find(
-    (account) => account.address === wallet.selectedAddress,
-  )
+  const session = wallet.session
+  const selectedAccount = session?.selectedAccount
   return (
     <div className="min-vh-100 d-flex flex-column">
       <header className="navbar bg-body-tertiary border-bottom sticky-top py-3">
@@ -25,8 +24,8 @@ function App() {
             isWalletConnected={Boolean(selectedAccount)}
           />
           <WalletControls
-            accounts={wallet.accounts}
-            selectedAddress={wallet.selectedAddress}
+            accounts={session?.accounts ?? []}
+            selectedAddress={session?.selectedAddress ?? ""}
             isConnecting={wallet.isConnecting}
             onSelectAccount={wallet.selectAccount}
             onConnect={wallet.connect}
@@ -42,7 +41,7 @@ function App() {
             {wallet.error}
           </p>
         )}
-        {!selectedAccount ? (
+        {!session || !selectedAccount ? (
           <section className="card shadow-sm">
             <div className="card-body p-4">
               <p className="mb-0" role="note">
@@ -59,24 +58,24 @@ function App() {
             )}
             {currentPage === 'lend' && (
               <LendingPage
-                key={wallet.selectedAddress}
+                key={session.selectedAddress}
                 user={selectedAccount}
-                isSyncingPortfolio={wallet.isSyncingPortfolio}
-                onSyncPortfolio={wallet.syncPortfolio}
+                isSyncingSession={wallet.isSyncingSession}
+                onSyncSession={wallet.syncSession}
               />
             )}
             {currentPage === 'borrow' && (
               <BorrowingPage
-                key={wallet.selectedAddress}
+                key={session.selectedAddress}
                 user={selectedAccount}
-                isSyncingPortfolio={wallet.isSyncingPortfolio}
-                onSyncPortfolio={wallet.syncPortfolio}
+                isSyncingSession={wallet.isSyncingSession}
+                onSyncSession={wallet.syncSession}
               />
             )}
             {currentPage === 'faucet' && (
               <FaucetPage
                 user={selectedAccount}
-                onSyncPortfolio={wallet.syncPortfolio}
+                onSyncSession={wallet.syncSession}
               />
             )}
           </>

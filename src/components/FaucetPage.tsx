@@ -5,12 +5,12 @@ import { protocolService } from "../services/ProtocolService";
 
 type FaucetPageProps = {
     user: User | undefined;
-    onSyncPortfolio: () => Promise<unknown>;
+    onSyncSession: () => Promise<void>;
 };
 
 export function FaucetPage({
     user,
-    onSyncPortfolio,
+    onSyncSession,
 }: FaucetPageProps) {
     const [isSending, setIsSending] = useState(false);
     const [message, setMessage] = useTimedMessage();
@@ -23,7 +23,7 @@ export function FaucetPage({
         try {
             await protocolService.faucet(symbol, user.address);
             setMessage(`${symbol} ajouté à votre portefeuille.`);
-            await onSyncPortfolio();
+            await onSyncSession();
         } catch (error) {
             setMessage("La transaction a échoué.");
         } finally {

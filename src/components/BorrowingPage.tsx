@@ -5,7 +5,6 @@ import { PortfolioAssetField } from "./PortfolioAssetField";
 import { useTimedMessage } from "../hooks/useTimedMessage";
 import type { AccountPosition } from "../models/AccountPosition";
 import { TUSDC_ASSET } from "../models/Asset";
-import type { Portfolio } from "../models/Portfolio";
 import type { User } from "../models/User";
 import {
     BorrowingCalculator,
@@ -18,8 +17,8 @@ import { formatUsdFromCents } from "../utils/formatCurrency";
 
 type BorrowingProps = {
     user: User | undefined;
-    isSyncingPortfolio: boolean;
-    onSyncPortfolio: () => Promise<Portfolio | null>;
+    isSyncingSession: boolean;
+    onSyncSession: () => Promise<void>;
 };
 
 type BorrowingPreview = BorrowingQuote & {
@@ -30,8 +29,8 @@ const borrowingCalculator = new BorrowingCalculator(priceOracle);
 
 export function BorrowingPage({
     user,
-    isSyncingPortfolio,
-    onSyncPortfolio,
+    isSyncingSession,
+    onSyncSession,
 }: BorrowingProps) {
     const [borrowedAmount, setBorrowedAmount] = useState("");
     const [message, setMessage] = useTimedMessage();
@@ -39,7 +38,7 @@ export function BorrowingPage({
     const [isSending, setIsSending] = useState(false);
     const [preview, setPreview] = useState<BorrowingPreview | null>(null);
     const collateralAsset = user?.portfolio.findAssetBySymbol("tETH") ?? null;
-    const isFormDisabled = !user || !collateralAsset || isSyncingPortfolio || isSending;
+    const isFormDisabled = !user || !collateralAsset || isSyncingSession || isSending;
     const borrowedAmountUnits = TUSDC_ASSET.parseAmount(borrowedAmount);
     const requiredCollateralUnits = preview?.requiredCollateralUnits ?? null;
     const requiredCollateral = requiredCollateralUnits !== null && collateralAsset
@@ -80,7 +79,7 @@ export function BorrowingPage({
 
     const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!user || !collateralAsset || isSyncingPortfolio) return;
+        if (!user || !collateralAsset || isSyncingSession) return;
 
         if (borrowedAmountUnits === null) {
             setMessage("Veuillez saisir un montant valide.");
@@ -105,7 +104,7 @@ export function BorrowingPage({
             const reason = error instanceof Error ? error.message : "Erreur inconnue.";
             setMessage(`La transaction a échoué : ${reason}`);
         } finally {
-            await onSyncPortfolio();
+            await onSyncSession();
             setIsSending(false);
         }
     };
@@ -197,7 +196,7 @@ export function BorrowingPage({
                         type="submit"
                         disabled={isFormDisabled || exceedsMaximumBorrow}
                     >
-                        {isSending ? "Transaction en cours..." : isSyncingPortfolio ? "Synchronisation..." : "Soumettre"}
+                        {isSending ? "Transaction en cours..." : isSyncingSession ? "Synchronisation..." : "Soumettre"}
                     </button>
 
                     {message && (

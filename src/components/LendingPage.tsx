@@ -2,26 +2,25 @@ import { useState, type SubmitEvent } from "react";
 import { BalancePercentageButtons } from "./BalancePercentageButtons";
 import { PortfolioAssetField } from "./PortfolioAssetField";
 import { useTimedMessage } from "../hooks/useTimedMessage";
-import type { Portfolio } from "../models/Portfolio";
 import type { User } from "../models/User";
 import { protocolService } from "../services/ProtocolService";
 
 type LendingProps = {
     user: User | undefined;
-    isSyncingPortfolio: boolean;
-    onSyncPortfolio: () => Promise<Portfolio | null>;
+    isSyncingSession: boolean;
+    onSyncSession: () => Promise<void>;
 };
 
 export function LendingPage({
     user,
-    isSyncingPortfolio,
-    onSyncPortfolio,
+    isSyncingSession,
+    onSyncSession,
 }: LendingProps) {
     const [amount, setAmount] = useState("");
     const [isSending, setIsSending] = useState(false);
     const [message, setMessage] = useTimedMessage();
     const syncedAsset = user?.portfolio.findAssetBySymbol("tUSDC") ?? null;
-    const isFormDisabled = !user || !syncedAsset || isSyncingPortfolio;
+    const isFormDisabled = !user || !syncedAsset || isSyncingSession;
 
     const applyBalancePercentage = (percentage: number) => {
         if (!syncedAsset) return;
@@ -31,7 +30,7 @@ export function LendingPage({
 
     const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!user || !syncedAsset || isSyncingPortfolio) {
+        if (!user || !syncedAsset || isSyncingSession) {
             return;
         }
         const amountUnits = syncedAsset.parseAmount(amount);
@@ -45,7 +44,7 @@ export function LendingPage({
         try {
             await protocolService.deposit(amountUnits, user.address);
             setMessage("Dépôt confirmé.");
-            await onSyncPortfolio();
+            await onSyncSession();
         } catch (error) {
             setMessage("La transaction a échoué.");
         } finally {
@@ -100,7 +99,7 @@ export function LendingPage({
                         type="submit"
                         disabled={isFormDisabled || isSending}
                     >
-                        {isSending ? "Transaction en cours..." : isSyncingPortfolio ? "Synchronisation..." : "Soumettre"}
+                        {isSending ? "Transaction en cours..." : isSyncingSession ? "Synchronisation..." : "Soumettre"}
                     </button>
 
                     {message && (

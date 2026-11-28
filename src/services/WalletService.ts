@@ -2,6 +2,7 @@ import { User } from "../models/User";
 import { Portfolio } from "../models/Portfolio";
 import { protocolService } from "./ProtocolService";
 import { getEthereumProvider } from "../utils/ethereumProvider";
+import type { MarketState } from "../models/MarketState";
 
 export class WalletService {
   async connect(): Promise<User[]> {
@@ -17,6 +18,10 @@ export class WalletService {
 
   async getPortfolio(address: string): Promise<Portfolio> {
     return protocolService.getPortfolio(address);
+  }
+
+  async getMarketState(): Promise<MarketState> {
+    return protocolService.getMarketState();
   }
 
   async getUsers(addresses: string[]): Promise<User[]> {
